@@ -2,7 +2,12 @@
   "permissions": {
     "allow": [
       "Bash(cargo check:*)",
-      "Bash(cargo run:*)"
+      "Bash(cargo run:*)",
+      "Bash(timeout 5s cargo run test_basic_while.atomic)",
+      "Bash(timeout 5s cargo run test_counting.atomic)",
+      "Bash(timeout 5s cargo run test_edge_cases.atomic)",
+      "Bash(timeout 5s cargo run test_nested.atomic)",
+      "Bash(timeout:*)"
     ],
     "deny": [],
     "ask": []

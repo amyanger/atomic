@@ -27,6 +27,7 @@ enum Token {
     // Control flow
     If,
     Else,
+    While,
     // Block delimiters
     LeftBrace,  // {
     RightBrace, // }
@@ -55,12 +56,14 @@ enum Condition {
 enum ASTNode {
     Print(String),
     Let(String, i32),
+    Assign(String, Value), // variable assignment
     Add(Value, Value),
     Subtract(Value, Value),
     Multiply(Value, Value),
     Divide(Value, Value),
     Modulus(Value, Value),
     If(Condition, Vec<ASTNode>, Option<Vec<ASTNode>>), // condition, then_block, else_block
+    While(Condition, Vec<ASTNode>), // condition, loop_block
 }
 
 /// Lexer: Converts source code into tokens.
@@ -149,6 +152,7 @@ fn lexer(code: &str) -> Vec<Token> {
                         "let" => tokens.push(Token::Let),
                         "if" => tokens.push(Token::If),
                         "else" => tokens.push(Token::Else),
+                        "while" => tokens.push(Token::While),
                         _ => {
                             if let Ok(num) = word.parse::<i32>() {
                                 tokens.push(Token::Number(num));
@@ -246,6 +250,17 @@ fn parse_statement(iter: &mut std::iter::Peekable<std::vec::IntoIter<Token>>) ->
                 Err("Expected variable name after 'let'".to_string())
             }
         }
+        Token::Identifier(var) => {
+            // Check if this is a variable assignment
+            if matches!(iter.peek(), Some(Token::Assign)) {
+                iter.next(); // consume '='
+                let value_token = iter.next().ok_or("Expected value after '='")?;
+                let value = parse_value(value_token).ok_or("Invalid value in assignment")?;
+                Ok(ASTNode::Assign(var, value))
+            } else {
+                Err(format!("Unexpected identifier: {}", var))
+            }
+        }
         Token::If => {
             let condition = parse_condition(iter)?;
             let then_block = parse_block(iter)?;
@@ -259,6 +274,11 @@ fn parse_statement(iter: &mut std::iter::Peekable<std::vec::IntoIter<Token>>) ->
             };
 
             Ok(ASTNode::If(condition, then_block, else_block))
+        }
+        Token::While => {
+            let condition = parse_condition(iter)?;
+            let loop_block = parse_block(iter)?;
+            Ok(ASTNode::While(condition, loop_block))
         }
         Token::Add | Token::Subtract | Token::Multiply | Token::Divide | Token::Modulus => {
             let lhs_token = iter.next().ok_or("Expected first operand")?;
@@ -351,6 +371,10 @@ fn execute(ast: &[ASTNode]) -> Result<(), String> {
             ASTNode::Let(var, value) => {
                 variables.insert(var.clone(), *value);
             }
+            ASTNode::Assign(var, value) => {
+                let val = resolve_value(value, &variables)?;
+                variables.insert(var.clone(), val);
+            }
             ASTNode::Add(lhs, rhs) => {
                 let lhs_val = resolve_value(lhs, &variables)?;
                 let rhs_val = resolve_value(rhs, &variables)?;
@@ -395,6 +419,11 @@ fn execute(ast: &[ASTNode]) -> Result<(), String> {
                     execute_block(else_block, &mut variables)?;
                 }
             }
+            ASTNode::While(condition, loop_block) => {
+                while evaluate_condition(condition, &variables)? {
+                    execute_block(loop_block, &mut variables)?;
+                }
+            }
         }
     }
     Ok(())
@@ -407,6 +436,10 @@ fn execute_block(block: &[ASTNode], variables: &mut HashMap<String, i32>) -> Res
             ASTNode::Print(text) => println!("{}", text),
             ASTNode::Let(var, value) => {
                 variables.insert(var.clone(), *value);
+            }
+            ASTNode::Assign(var, value) => {
+                let val = resolve_value(value, &variables)?;
+                variables.insert(var.clone(), val);
             }
             ASTNode::Add(lhs, rhs) => {
                 let lhs_val = resolve_value(lhs, variables)?;
@@ -450,6 +483,11 @@ fn execute_block(block: &[ASTNode], variables: &mut HashMap<String, i32>) -> Res
                     execute_block(then_block, variables)?;
                 } else if let Some(else_block) = else_block {
                     execute_block(else_block, variables)?;
+                }
+            }
+            ASTNode::While(condition, loop_block) => {
+                while evaluate_condition(condition, variables)? {
+                    execute_block(loop_block, variables)?;
                 }
             }
         }
