@@ -22,7 +22,7 @@ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 
 ### 2️⃣ **Clone the Atomic Repository** ⚡
 ```sh
-git clone https://github.com/arjun-myanger/atomic-lang.git
+git clone https://github.com/amyanger/atomic-lang.git
 cd atomic-lang
 ```
 
